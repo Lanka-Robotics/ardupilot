@@ -67,6 +67,16 @@ private:
       double position_xyz[3];
     };
 
+    /// @brief fdm_packet followed by the measured (unsigned) RPM of the motor on each of
+    /// the first WEBOTS_RPM_MOTORS servo outputs. Optional: a controller that sends the
+    /// plain fdm_packet gets no ESC telemetry, as before.
+    /// python struct code 'd'*(1+3+3+3+3+3+4)
+    static const uint8_t WEBOTS_RPM_MOTORS = 4;
+    struct fdm_packet_rpm {
+      fdm_packet fdm;
+      double motor_rpm[WEBOTS_RPM_MOTORS];
+    };
+
     /// @brief receive sensor packet from Webots
     void recv_fdm(const struct sitl_input &input);
 

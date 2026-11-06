@@ -76,13 +76,18 @@ void WebotsPython::send_servos(const struct sitl_input &input)
 */
 void WebotsPython::recv_fdm(const struct sitl_input &input)
 {
-    fdm_packet pkt;
+    fdm_packet_rpm pkt_rpm;
+    const fdm_packet &pkt = pkt_rpm.fdm;
+    ssize_t received;
 
     /*
       we re-send the servo packet every 0.1 seconds until we get a
-      reply. This allows us to cope with some packet loss to the FDM
+      reply. This allows us to cope with some packet loss to the FDM.
+      Either packet size is accepted: with the trailing RPM block, the
+      motors' RPM feeds the simulated ESC telemetry.
      */
-    while (socket_sitl.recv(&pkt, sizeof(pkt), 100) != sizeof(pkt)) {
+    while ((received = socket_sitl.recv(&pkt_rpm, sizeof(pkt_rpm), 100)) != sizeof(fdm_packet) &&
+           received != sizeof(fdm_packet_rpm)) {
         send_servos(input);
         // Reset the timestamp after a long disconnection, also catch webots reset
         if (get_wall_time_us() > last_wall_time_us + WEBOTS_TIMEOUT_US) {
@@ -117,6 +122,14 @@ void WebotsPython::recv_fdm(const struct sitl_input &input)
                         pkt.position_xyz[1],
                         pkt.position_xyz[2]);
     position.xy() += origin.get_distance_NE_double(home);
+
+    // measured motor RPM -> AP_ESC_Telem_SITL (SIM_ESC_TELEM)
+    if (received == sizeof(fdm_packet_rpm)) {
+        motor_mask = (1U << WEBOTS_RPM_MOTORS) - 1;
+        for (uint8_t i = 0; i < WEBOTS_RPM_MOTORS; i++) {
+            rpm[i] = static_cast<float>(pkt_rpm.motor_rpm[i]);
+        }
+    }
 
     // auto-adjust to simulation frame rate
     time_now_us += static_cast<uint64_t>(deltat * 1.0e6);
